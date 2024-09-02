@@ -1,0 +1,28 @@
+[package]
+authors     = ["9-FS <pray4spam@googlemail.com>"]
+categories  = []
+description = "a simple configuration loader using figment"
+edition     = "2021"
+exclude     = [".github/", "readme.pdf"]                    # additional to .gitignore
+keywords    = []
+license     = "MIT"
+name        = "load_config"
+readme      = "readme.md"
+repository  = "https://github.com/9-FS/load_config"
+version     = "1.0.0"
+
+[dependencies]
+
+figment    = { version = "^0.10.0", features = ["env"] }
+log        = "^0.4.0"
+serde      = { version = "^1.0.0", features = ["derive"] }
+serde_json = { version = "^1.0.0", optional = true }
+serde_yaml = { version = "^0.9.0", optional = true }
+toml       = { version = "^0.8.0", optional = true }
+
+[features]
+config_file = []
+default     = []
+json_file   = ["config_file", "figment/json", "serde_json"]
+toml_file   = ["config_file", "figment/toml", "toml"]
+yaml_file   = ["config_file", "figment/yaml", "serde_yaml"]
