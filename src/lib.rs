@@ -1,5 +1,7 @@
 // Copyright (c) 2024 구FS, all rights reserved. Subject to the MIT licence in `licence.md`.
+#[allow(unused_imports)]
 use figment::providers::Format;
+#[allow(unused_imports)]
 use std::io::Write;
 
 
@@ -13,6 +15,7 @@ use std::io::Write;
 ///
 /// # Returns
 /// - successfully loaded config of type `T` or an error
+#[allow(unused_variables)]
 pub fn load_config<'a, T>(sources: Vec<Source>, config_file_default: Option<SourceFile>) -> Result<T, figment::Error>
 where
     T: std::fmt::Debug + Default + serde::Deserialize<'a> + serde::Serialize,
