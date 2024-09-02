@@ -15,6 +15,7 @@ In case of conflicting settings, the source order defines the precedence. Earlie
 1. Paste the following `Cargo.toml` entry into your `Cargo.toml` beneath `[dependencies]`:
     ```TOML
     load_config = { git = "https://github.com/9-FS/load_config", tag = "", features = []}
+    serde = { version = "^1.0.0", features = ["derive"] }
     ```
 1. Write the desired version number into the `tag` field.
     > [!NOTE]
@@ -23,12 +24,6 @@ In case of conflicting settings, the source order defines the precedence. Earlie
     - `json_file`
     - `toml_file`, can notably also be used for `.env` files
     - `yaml_file`
-
-Example:
-
-```TOML
-load_config = { git = "https://github.com/9-FS/load_config", tag = "1.0.0", features = ["toml_file"] }
-```
 
 ## Usage
 
@@ -92,7 +87,8 @@ load_config = { git = "https://github.com/9-FS/load_config", tag = "1.0.0", feat
 `./Cargo.toml`
 
 ```TOML
-load_config = { git = "https://github.com/9-FS/load_config", tag = "1.0.0", features = ["yaml_file"] }
+load_config = { git = "https://github.com/9-FS/load_config", tag = "1.0.0", features = ["toml_file"] }
+serde = { version = "^1.0.0", features = ["derive"] }
 ```
 
 `./src/config.rs`
