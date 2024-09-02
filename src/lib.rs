@@ -15,6 +15,67 @@ use std::io::Write;
 ///
 /// # Returns
 /// - successfully loaded config of type `T` or an error
+///
+/// # Example
+/// ```
+/// // create test config file with `config_filecontent` to test loading config from file
+/// let config_filecontent: &str = "setting1 = true\nsetting2 = 42069";
+/// use std::io::Write;
+/// const TEST_PATH: &str = "./test/";
+/// const CONFIG_FILEPATH: &str = "./test/config.toml";
+/// std::fs::create_dir_all(TEST_PATH).expect(format!("Creating \"{TEST_PATH}\" failed.").as_str());
+/// let mut config_file = std::fs::File::create(CONFIG_FILEPATH).expect(format!("Creating \"{CONFIG_FILEPATH}\" failed.").as_str());
+/// config_file.write_all(config_filecontent.as_bytes()).expect(format!("Writing to \"{CONFIG_FILEPATH}\" failed.").as_str());
+///
+///
+/// // `./src/config.rs`
+/// // collection of settings making up the configuration of the application
+/// #[derive(PartialEq)] // only necessary for testing
+/// #[derive(Debug, serde::Deserialize, serde::Serialize)]
+/// #[allow(non_snake_case)]
+/// pub struct Config
+/// {
+///     pub setting1: bool,
+///     pub setting2: i32,
+///     pub setting3: String,
+/// }
+///
+/// impl Default for Config
+/// {
+///     fn default() -> Self
+///     {
+///         Config
+///         {
+///             setting1: false,
+///             setting2: 0,
+///             setting3: "amogusඞ".to_string(),
+///         }
+///     }
+/// }
+///
+///
+/// // `./src/main.rs`
+/// // load config from file
+/// let config: Config;
+/// match load_config::load_config
+/// (
+///     vec!
+///     [
+///         load_config::Source::Env,
+///         load_config::Source::File(load_config::SourceFile::Toml(CONFIG_FILEPATH.to_string())),
+///         load_config::Source::ConfigDefault,
+///     ],
+///     None,
+/// )
+/// {
+///     Ok(o) => {config = o;} // loaded config successfully
+///     Err(_) => {panic!("Loading config failed.")} // loading config failed
+/// }
+///
+///
+/// assert_eq!(config, Config{setting1: true, setting2: 42069, setting3: "amogusඞ".to_string()}); // test correctness
+/// std::fs::remove_dir_all(TEST_PATH).expect(format!("Removing \"{TEST_PATH}\" failed.").as_str()); // cleanup
+/// ```
 #[allow(unused_variables)]
 pub fn load_config<'a, T>(sources: Vec<Source>, config_file_default: Option<SourceFile>) -> Result<T, figment::Error>
 where

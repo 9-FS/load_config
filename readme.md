@@ -100,8 +100,8 @@ serde = { version = "^1.0.0", features = ["derive"] }
 #[allow(non_snake_case)]
 pub struct Config
 {
-    setting1: String,
-    setting2: i32,
+    pub setting1: String,
+    pub setting2: i32,
 }
 
 impl Default for Config
@@ -128,9 +128,9 @@ match load_config::load_config
     vec!
     [
         load_config::Source::Env,
-        load_config::Source::File(load_config::SourceFile::Yaml("./config/config.yaml".to_string())),
+        load_config::Source::File(load_config::SourceFile::Toml("./config/.env".to_string())),
     ],
-    Some(load_config::SourceFile::Yaml("./config/config.yaml".to_string()))
+    Some(load_config::SourceFile::Toml("./config/.env".to_string()))
 )
 {
     Ok(o) => {config = o;} // loaded config successfully
