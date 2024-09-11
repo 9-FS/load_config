@@ -1,4 +1,6 @@
 // Copyright (c) 2024 구FS, all rights reserved. Subject to the MIT licence in `licence.md`.
+mod error;
+pub use crate::error::*;
 #[allow(unused_imports)]
 use figment::providers::Format;
 #[allow(unused_imports)]
@@ -18,14 +20,11 @@ use std::io::Write;
 ///
 /// # Example
 /// ```
-/// // create test config file with `config_filecontent` to test loading config from file
-/// let config_filecontent: &str = "setting1 = true\nsetting2 = 42069";
-/// use std::io::Write;
-/// const TEST_PATH: &str = "./test/";
-/// const CONFIG_FILEPATH: &str = "./test/config.toml";
-/// std::fs::create_dir_all(TEST_PATH).expect(format!("Creating \"{TEST_PATH}\" failed.").as_str());
-/// let mut config_file = std::fs::File::create(CONFIG_FILEPATH).expect(format!("Creating \"{CONFIG_FILEPATH}\" failed.").as_str());
-/// config_file.write_all(config_filecontent.as_bytes()).expect(format!("Writing to \"{CONFIG_FILEPATH}\" failed.").as_str());
+/// // create test file at test_filepath with TEST_CONTENT to test loading from file
+/// const TEST_CONTENT: &str = "setting1 = true\nsetting2 = 42069";
+/// let test_filepath: &std::path::Path = std::path::Path::new("./test/config.toml");
+/// std::fs::create_dir_all(test_filepath.parent().unwrap()).expect(format!("Creating \"{:?}\" failed.", test_filepath.parent().unwrap()).as_str());
+/// std::fs::write(test_filepath, TEST_CONTENT).expect(format!("Writing to \"{test_filepath:?}\" failed.").as_str());
 ///
 ///
 /// // `./src/config.rs`
@@ -62,7 +61,7 @@ use std::io::Write;
 ///     vec!
 ///     [
 ///         load_config::Source::Env,
-///         load_config::Source::File(load_config::SourceFile::Toml(CONFIG_FILEPATH.to_string())),
+///         load_config::Source::File(load_config::SourceFile::Toml(test_filepath.to_str().unwrap().to_owned())),
 ///         load_config::Source::ConfigDefault,
 ///     ],
 ///     None,
@@ -74,10 +73,11 @@ use std::io::Write;
 ///
 ///
 /// assert_eq!(config, Config{setting1: true, setting2: 42069, setting3: "amogusඞ".to_string()}); // test correctness
-/// std::fs::remove_dir_all(TEST_PATH).expect(format!("Removing \"{TEST_PATH}\" failed.").as_str()); // cleanup
+///
+/// std::fs::remove_dir_all(test_filepath.parent().unwrap()).expect(format!("Removing {test_filepath:?} failed.").as_str()); // cleanup
 /// ```
 #[allow(unused_variables)]
-pub fn load_config<'a, T>(sources: Vec<Source>, config_file_default: Option<SourceFile>) -> Result<T, figment::Error>
+pub fn load_config<'a, T>(sources: Vec<Source>, config_file_default: Option<SourceFile>) -> Result<T, Error>
 where
     T: std::fmt::Debug + Default + serde::Deserialize<'a> + serde::Serialize,
 {
@@ -106,25 +106,19 @@ where
 
     match fig.extract() // Figment -> T
     {
-        Ok(c) => // loaded config successfully
-        {
-            config = c;
-            log::debug!("Loaded {config:?}.");
-        }
+        Ok(c) => config = c, // loaded config successfully
+
         Err(e) => // loading config failed
         {
-            log::error!("Loading config failed with: {e}");
-
             #[cfg(feature = "config_file")]
             if let figment::error::Kind::MissingField(_) = e.kind // if setting unset
             {
                 if let Some(s) = config_file_default // and default config file specified
                 {
-                    offer_default_file_creation::<T>(s); //offer to create default config file
+                    create_default_file::<T>(s)?; //offer to create default config file, upon failure propagate this error over the missing field error
                 }
             }
-
-            return Err(e);
+            return Err(e.into()); // if not because of missing field: just forward error
         }
     }
 
@@ -133,12 +127,13 @@ where
 
 
 /// # Summary
-/// Offers to create a default config file with `config_file_default`'s format and its contained filepath if it does not exist yet. If accepted, writes default config of type `T` to file.
+/// Creates a default config file with `config_file_default`'s format at its contained filepath, if it does not exist yet.
 ///
 /// # Arguments
+/// - `T`: type of default config to create with `T::default()` determining the content
 /// - `config_file_default`: default config file format and path to create if a setting is unset
 #[cfg(feature = "config_file")]
-fn offer_default_file_creation<'a, T>(config_file_default: SourceFile) -> ()
+fn create_default_file<'a, T>(config_file_default: SourceFile) -> Result<(), CreateDefaultFileError>
 where
     T: std::fmt::Debug + Default + serde::Deserialize<'a> + serde::Serialize,
 {
@@ -156,82 +151,23 @@ where
         #[cfg(feature = "yaml_file")]
         SourceFile::Yaml(filepath) => filepath.clone(),
     };
-    if std::path::Path::new(filepath.as_str()).exists() {return;} // if file already exists: don't want to overwrite anything
+    if std::path::Path::new(filepath.as_str()).exists() {return Ok(());} // if file already exists: don't want to overwrite existing but faulty config file, rather give missing field error to user
 
 
-    loop
-    {
-        log::info!("Would you like to create a default config file at \"{filepath}\"? (y/n)");
-        let mut input: String = String::new();
-        _ = std::io::stdin().read_line(&mut input); // read input
-        match input.trim()
-        {
-            "y" => break, // offer accepted, create default config file
-            "n" => return, // offer denied, don't do anything
-            _ => {} // input invalid, ask again
-        }
-    }
-
-    match config_file_default
+    file_content = match config_file_default
     {
         #[cfg(feature = "json_file")]
-        SourceFile::Json(_) =>
-        {
-            match serde_json::to_string_pretty(&T::default()) // serialise config to json
-            {
-                Ok(o) => {file_content = o;}
-                Err(e) =>
-                {
-                    log::error!("Serialising \"{:?}\" to json failed with: {}", &T::default(), e);
-                    return;
-                }
-            };
-        }
+        SourceFile::Json(_) => serde_json::to_string_pretty(&T::default())?, // serialise config to json
         #[cfg(feature = "toml_file")]
-        SourceFile::Toml(_) =>
-        {
-            match toml::to_string_pretty(&T::default()) // serialise config to toml
-            {
-                Ok(o) => {file_content = o;}
-                Err(e) =>
-                {
-                    log::error!("Serialising \"{:?}\" to toml failed with: {}", &T::default(), e);
-                    return;
-                }
-            };
-        }
+        SourceFile::Toml(_) => toml::to_string_pretty(&T::default())?, // serialise config to toml
         #[cfg(feature = "yaml_file")]
-        SourceFile::Yaml(_) =>
-        {
-            match serde_yaml::to_string(&T::default()) // serialise config to yaml
-            {
-                Ok(o) => {file_content = o;}
-                Err(e) =>
-                {
-                    log::error!("Serialising \"{:?}\" to yaml failed with: {}", &T::default(), e);
-                    return;
-                }
-            };
-        }
+        SourceFile::Yaml(_) => serde_yaml::to_string(&T::default())?, // serialise config to yaml
     };
 
-    match std::fs::File::create_new(filepath.clone()) // create new file, fails if already exists, don't want to overwrite anything
-    {
-        Ok(o) => {file = o;}
-        Err(e) =>
-        {
-            log::error!("Creating default config file at \"{filepath}\" failed with: {e}");
-            return;
-        }
-    };
+    file = std::fs::File::create_new(filepath.clone())?; // create new file, fails if already exists, don't want to overwrite anything
+    file.write_all(file_content.as_bytes())?; // write serialised default config to file
 
-    match file.write_all(file_content.as_bytes()) // write string to file
-    {
-        Ok(_) => log::info!("Created default config file at \"{filepath}\"."),
-        Err(e) => log::error!("Writing config to \"{filepath}\" failed with: {e}"),
-    };
-
-    return;
+    return Ok(());
 }
 
 
