@@ -9,7 +9,7 @@ license     = "MIT"
 name        = "load_config"
 readme      = "readme.md"
 repository  = "https://github.com/9-FS/load_config"
-version     = "1.1.0"
+version     = "1.1.1"
 
 [dependencies]
 figment    = { version = "^0.10.0", features = ["env"] }

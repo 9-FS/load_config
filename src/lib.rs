@@ -164,6 +164,7 @@ where
         SourceFile::Yaml(_) => serde_yaml::to_string(&T::default())?, // serialise config to yaml
     };
 
+    std::fs::create_dir_all(std::path::Path::new(filepath.as_str()).parent().unwrap_or(std::path::Path::new("")))?; // create all parent directories
     file = std::fs::File::create_new(filepath.clone())?; // create new file, fails if already exists, don't want to overwrite anything
     file.write_all(file_content.as_bytes())?; // write serialised default config to file
 
