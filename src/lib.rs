@@ -90,7 +90,7 @@ where
         match source
         {
             Source::ConfigDefault => fig = fig.join(figment::providers::Serialized::defaults(T::default())),
-            Source::Env => fig = fig.join(figment::providers::Env::raw()),
+            Source::Env => fig = fig.join(figment::providers::Env::raw().lowercase(false)), // don't lowercase env variable names, keep unchanged
             #[cfg(feature = "config_file")]
             Source::File(source_file) => match source_file
             {
