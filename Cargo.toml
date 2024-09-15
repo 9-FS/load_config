@@ -25,3 +25,7 @@ default     = []
 json_file   = ["config_file", "figment/json", "serde_json"]
 toml_file   = ["config_file", "figment/toml", "toml"]
 yaml_file   = ["config_file", "figment/yaml", "serde_yaml"]
+
+[lints.clippy]
+needless_late_init = "allow"
+needless_return    = "allow"
