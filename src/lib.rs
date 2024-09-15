@@ -115,10 +115,20 @@ where
             {
                 if let Some(s) = config_file_default // and default config file specified
                 {
-                    create_default_file::<T>(s)?; //offer to create default config file, upon failure propagate this error over the missing field error
+                    create_default_file::<T>(&s)?; // create default config file, upon failure propagate this error over the missing field error
+                    let filepath: String = match s // extract filepath where default config file was created
+                    {
+                        #[cfg(feature = "json_file")]
+                        SourceFile::Json(filepath) => filepath,
+                        #[cfg(feature = "toml_file")]
+                        SourceFile::Toml(filepath) => filepath,
+                        #[cfg(feature = "yaml_file")]
+                        SourceFile::Yaml(filepath) => filepath,
+                    };
+                    return Err(Error::CreatedDefaultFile {filepath}); // created default config file successfully
                 }
             }
-            return Err(e.into()); // if not because of missing field: just forward error
+            return Err(e.into()); // if not because of missing field: just forward figment error
         }
     }
 
@@ -133,25 +143,25 @@ where
 /// - `T`: type of default config to create with `T::default()` determining the content
 /// - `config_file_default`: default config file format and path to create if a setting is unset
 #[cfg(feature = "config_file")]
-fn create_default_file<'a, T>(config_file_default: SourceFile) -> Result<(), CreateDefaultFileError>
+fn create_default_file<'a, T>(config_file_default: &SourceFile) -> Result<(), CreateDefaultFileError>
 where
     T: std::fmt::Debug + Default + serde::Deserialize<'a> + serde::Serialize,
 {
     let mut file: std::fs::File; // file to write to
     let file_content: String; // config serialised to write to file
-    let filepath: String; // path to file to be created
+    let filepath: &str; // path to file to be created
 
 
-    filepath = match &config_file_default // extract filepath
+    filepath = match config_file_default // extract filepath
     {
         #[cfg(feature = "json_file")]
-        SourceFile::Json(filepath) => filepath.clone(),
+        SourceFile::Json(filepath) => filepath,
         #[cfg(feature = "toml_file")]
-        SourceFile::Toml(filepath) => filepath.clone(),
+        SourceFile::Toml(filepath) => filepath,
         #[cfg(feature = "yaml_file")]
-        SourceFile::Yaml(filepath) => filepath.clone(),
+        SourceFile::Yaml(filepath) => filepath,
     };
-    if std::path::Path::new(filepath.as_str()).exists() {return Ok(());} // if file already exists: don't want to overwrite existing but faulty config file, rather give missing field error to user
+    if std::path::Path::new(filepath).exists() {return Ok(());} // if file already exists: don't want to overwrite existing but faulty config file, rather give missing field error to user
 
 
     file_content = match config_file_default
@@ -164,9 +174,19 @@ where
         SourceFile::Yaml(_) => serde_yaml::to_string(&T::default())?, // serialise config to yaml
     };
 
-    std::fs::create_dir_all(std::path::Path::new(filepath.as_str()).parent().unwrap_or(std::path::Path::new("")))?; // create all parent directories
-    file = std::fs::File::create_new(filepath.clone())?; // create new file, fails if already exists, don't want to overwrite anything
-    file.write_all(file_content.as_bytes())?; // write serialised default config to file
+    if let Err(e) = std::fs::create_dir_all(std::path::Path::new(filepath).parent().unwrap_or(std::path::Path::new(""))) // create all parent directories
+    {
+        return Err(CreateDefaultFileError::StdIo {filepath: filepath.to_owned(), source: e}); // creating parent directories failed
+    }
+    match std::fs::File::create_new(filepath) // create new file, fails if already exists, don't want to overwrite anything
+    {
+        Ok(o) => file = o, // created file successfully
+        Err(e) => return Err(CreateDefaultFileError::StdIo {filepath: filepath.to_owned(), source: e}), // creating file failed
+    }
+    if let Err(e) = file.write_all(file_content.as_bytes()) // write serialised default config to file
+    {
+        return Err(CreateDefaultFileError::StdIo {filepath: filepath.to_owned(), source: e}); // writing to file failed
+    }
 
     return Ok(());
 }
