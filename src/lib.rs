@@ -115,8 +115,7 @@ where
             {
                 if let Some(s) = config_file_default // and default config file specified
                 {
-                    create_default_file::<T>(&s)?; // create default config file, upon failure propagate this error over the missing field error
-                    let filepath: String = match s // extract filepath where default config file was created
+                    let filepath: String = match s.clone() // extract filepath where default config should be created
                     {
                         #[cfg(feature = "json_file")]
                         SourceFile::Json(filepath) => filepath,
@@ -125,7 +124,11 @@ where
                         #[cfg(feature = "yaml_file")]
                         SourceFile::Yaml(filepath) => filepath,
                     };
-                    return Err(Error::CreatedDefaultFile {filepath}); // created default config file successfully
+                    if !std::path::Path::new(&filepath).exists() // and if file does not already exist, don't want to overwrite existing but faulty config file, rather give missing field error to user
+                    {
+                        create_default_file::<T>(&s)?; // create default config file, upon failure propagate this error over the missing field error
+                        return Err(Error::CreatedDefaultFile {filepath}); // created default config file successfully
+                    }
                 }
             }
             return Err(e.into()); // if not because of missing field: just forward figment error
@@ -161,7 +164,6 @@ where
         #[cfg(feature = "yaml_file")]
         SourceFile::Yaml(filepath) => filepath,
     };
-    if std::path::Path::new(filepath).exists() {return Ok(());} // if file already exists: don't want to overwrite existing but faulty config file, rather give missing field error to user
 
 
     file_content = match config_file_default
@@ -194,6 +196,7 @@ where
 
 /// # Summary
 /// Config source. Either environment variables, a file or config default.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Source // could not use list of trait objects (Vec<Box<dyn figment::Provider>>) because figment::merge() requires a type known at compile time
 {
     ConfigDefault,
@@ -205,6 +208,7 @@ pub enum Source // could not use list of trait objects (Vec<Box<dyn figment::Pro
 
 /// # Summary
 /// Supported config file source formats, contain filepath.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SourceFile
 {
     #[cfg(feature = "json_file")]
